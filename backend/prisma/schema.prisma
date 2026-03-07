@@ -1,0 +1,98 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String          @id @default(cuid())
+  name         String
+  email        String          @unique
+  password     String
+  role         Role            @default(ARTIST)
+  studioName   String?
+  city         String?
+  instagram    String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  requests     TattooRequest[]
+  quotes       Quote[]
+  appointments Appointment[]
+}
+
+enum Role {
+  ARTIST
+  CLIENT
+}
+
+model TattooRequest {
+  id              String        @id @default(cuid())
+  clientName      String
+  clientEmail     String
+  clientPhone     String
+  placement       String
+  size            Size
+  style           String
+  description     String
+  referenceImages String[]
+  preferredDate   String
+  preferredTime   String
+  status          RequestStatus @default(PENDING)
+  artistId        String
+  artist          User          @relation(fields: [artistId], references: [id])
+  quote           Quote?
+  appointment     Appointment?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+enum Size {
+  SMALL
+  MEDIUM
+  LARGE
+}
+
+enum RequestStatus {
+  PENDING
+  QUOTED
+  APPROVED
+  REJECTED
+  SCHEDULED
+}
+
+model Quote {
+  id            String        @id @default(cuid())
+  requestId     String        @unique
+  request       TattooRequest @relation(fields: [requestId], references: [id])
+  artistId      String
+  artist        User          @relation(fields: [artistId], references: [id])
+  priceEstimate Float
+  sessionTime   String
+  message       String
+  status        QuoteStatus   @default(PENDING)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+enum QuoteStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model Appointment {
+  id        String        @id @default(cuid())
+  artistId  String
+  artist    User          @relation(fields: [artistId], references: [id])
+  requestId String        @unique
+  request   TattooRequest @relation(fields: [requestId], references: [id])
+  date      String
+  startTime String
+  endTime   String
+  notes     String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
