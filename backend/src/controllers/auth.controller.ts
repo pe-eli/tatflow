@@ -43,6 +43,17 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       data: { name, email, password: hashed, role: 'ARTIST', studioName, city, instagram },
     });
 
+    // Seed default availability: Mon–Fri 09:00–18:00 (60 min slots)
+    await prisma.availability.createMany({
+      data: [1, 2, 3, 4, 5].map((dayOfWeek) => ({
+        artistId: user.id,
+        dayOfWeek,
+        startTime: '09:00',
+        endTime: '18:00',
+        slotDuration: 60,
+      })),
+    });
+
     const token = jwt.sign(
       { userId: user.id, role: user.role },
       getJwtSecret(),
