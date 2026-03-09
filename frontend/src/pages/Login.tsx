@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { authAPI } from '../services/api'
+import { authAPI, extractApiError } from '../services/api'
 
 const Login: React.FC = () => {
   const { login } = useAuth()
@@ -21,8 +21,7 @@ const Login: React.FC = () => {
       login(res.data.token, res.data.user, remember)
       navigate('/dashboard')
     } catch (err: unknown) {
-      const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      setError(message || 'Falha no login. Verifique suas credenciais.')
+      setError(extractApiError(err, 'Falha no login. Verifique suas credenciais.'))
     } finally {
       setLoading(false)
     }

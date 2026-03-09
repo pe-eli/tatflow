@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { authAPI } from '../services/api'
+import { authAPI, extractApiError } from '../services/api'
 
 type Role = 'ARTIST' | 'CLIENT'
 
@@ -33,8 +33,7 @@ const Register: React.FC = () => {
       login(res.data.token, res.data.user, true)
       navigate('/dashboard')
     } catch (err: unknown) {
-      const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      setError(message || 'Falha no cadastro. Tente novamente.')
+      setError(extractApiError(err, 'Falha no cadastro. Tente novamente.'))
     } finally {
       setLoading(false)
     }

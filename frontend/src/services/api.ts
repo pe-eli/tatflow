@@ -1,8 +1,27 @@
 import axios from 'axios'
 
+// In development the Vite proxy rewrites /api → http://localhost:3001.
+// In production set VITE_API_URL to the absolute backend URL, e.g.:
+//   VITE_API_URL=https://api.tatflow.com
+// Leave it empty to keep using a server-side /api proxy.
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_URL ?? '/api',
 })
+
+/**
+ * Safely extracts a human-readable string from any Axios error response,
+ * preventing raw objects from leaking into React state.
+ */
+export function extractApiError(err: unknown, fallback: string): string {
+  const data = (err as { response?: { data?: unknown } })?.response?.data
+  if (typeof data === 'string' && data.length > 0 && !data.startsWith('<')) return data
+  if (data && typeof data === 'object') {
+    const d = data as Record<string, unknown>
+    if (typeof d.error === 'string') return d.error
+    if (typeof d.message === 'string') return d.message
+  }
+  return fallback
+}
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('tatflow_token') || sessionStorage.getItem('tatflow_token')

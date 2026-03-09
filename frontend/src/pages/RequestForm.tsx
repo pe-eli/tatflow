@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
-import { requestAPI, availabilityAPI } from '../services/api'
+import { requestAPI, availabilityAPI, extractApiError } from '../services/api'
 import { Availability, TimeSlot } from '../types'
 const STYLES = [
   'Traço Fino', 'Realismo', 'Tradicional', 'Neo-Tradicional', 'Blackwork',
@@ -183,8 +183,7 @@ const RequestForm: React.FC = () => {
       await requestAPI.create(fd)
       setSubmitted(true)
     } catch (err: unknown) {
-      const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      setError(message || 'Falha ao enviar solicitação. Tente novamente.')
+      setError(extractApiError(err, 'Falha ao enviar solicitação. Tente novamente.'))
     } finally {
       setLoading(false)
     }
