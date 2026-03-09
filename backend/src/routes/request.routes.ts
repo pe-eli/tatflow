@@ -6,6 +6,7 @@ import {
   getArtistRequests,
   getRequestById,
   updateRequestStatus,
+  resolveArtist,
 } from '../controllers/request.controller';
 import { authenticate } from '../middleware/auth';
 
@@ -32,6 +33,7 @@ const router = Router();
 
 // Public route - clients submit without auth
 router.post('/', upload.array('referenceImages', 5), createRequest);
+router.get('/artist/:identifier', resolveArtist);
 
 // Protected routes - artist only
 router.get('/', authenticate, getArtistRequests);

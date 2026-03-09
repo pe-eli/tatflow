@@ -8,6 +8,7 @@ const Login: React.FC = () => {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [remember, setRemember] = useState(true)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -17,7 +18,7 @@ const Login: React.FC = () => {
     setLoading(true)
     try {
       const res = await authAPI.login(email, password)
-      login(res.data.token, res.data.user)
+      login(res.data.token, res.data.user, remember)
       navigate('/dashboard')
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
@@ -45,6 +46,7 @@ const Login: React.FC = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 className="input"
                 placeholder="voce@estudio.com.br"
+                maxLength={150}
                 required
               />
             </div>
@@ -56,9 +58,20 @@ const Login: React.FC = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 className="input"
                 placeholder="••••••••"
+                maxLength={128}
                 required
               />
             </div>
+
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-ink-600 focus:ring-ink-500 focus:ring-offset-0"
+              />
+              <span className="text-sm text-gray-400">Manter conectado</span>
+            </label>
 
             {error && (
               <div className="rounded-lg bg-red-900/20 border border-red-700 p-3 text-sm text-red-300">

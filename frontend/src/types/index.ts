@@ -8,10 +8,11 @@ export interface User {
   studioName?: string
   city?: string
   instagram?: string
+  slug?: string
+  whatsappMessage?: string
 }
 
-export type RequestStatus = 'PENDING' | 'QUOTED' | 'APPROVED' | 'REJECTED' | 'SCHEDULED'
-export type Size = 'SMALL' | 'MEDIUM' | 'LARGE'
+export type RequestStatus = 'PENDING' | 'QUOTED' | 'APPROVED' | 'REJECTED' | 'SCHEDULED' | 'CANCELLED'
 export type QuoteStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED'
 
 export interface TattooRequest {
@@ -20,7 +21,7 @@ export interface TattooRequest {
   clientEmail: string
   clientPhone: string
   placement: string
-  size: Size
+  size: string
   style: string
   description: string
   referenceImages: string[]
@@ -46,11 +47,26 @@ export interface Quote {
 export interface Appointment {
   id: string
   artistId: string
-  requestId: string
+  requestId: string | null
+  clientName?: string
   date: string
   startTime: string
   endTime: string
   notes?: string
   createdAt: string
   request?: TattooRequest
+}
+
+export interface Availability {
+  id: string
+  artistId: string
+  dayOfWeek: number
+  startTime: string
+  endTime: string
+  slotDuration: number
+}
+
+export interface TimeSlot {
+  startTime: string
+  endTime: string
 }

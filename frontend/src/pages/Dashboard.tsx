@@ -12,6 +12,7 @@ const TABS = [
   { key: 'APPROVED', label: 'Aprovados' },
   { key: 'SCHEDULED', label: 'Agendados' },
   { key: 'REJECTED', label: 'Recusados' },
+  { key: 'CANCELLED', label: 'Cancelados' },
 ] as const
 
 const Dashboard: React.FC = () => {
@@ -19,8 +20,9 @@ const Dashboard: React.FC = () => {
   const [requests, setRequests] = useState<TattooRequest[]>([])
   const [activeTab, setActiveTab] = useState<string>('ALL')
   const [loading, setLoading] = useState(true)
+  const [copied, setCopied] = useState(false)
 
-  const requestLink = `${window.location.origin}/request/${user?.id}`
+  const requestLink = `${window.location.origin}/request/${user?.slug || user?.id}`
 
   useEffect(() => {
     const fetch = async () => {
@@ -48,7 +50,8 @@ const Dashboard: React.FC = () => {
 
   const copyLink = () => {
     navigator.clipboard.writeText(requestLink)
-    alert('Link de solicitação copiado!')
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   return (
@@ -58,11 +61,25 @@ const Dashboard: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-white">Painel</h1>
           <p className="text-gray-400 text-sm mt-1">
-            {user?.studioName || user?.name} · {user?.city}
+            {user?.studioName || user?.name}
           </p>
         </div>
-        <button onClick={copyLink} className="btn-secondary flex items-center gap-2 text-sm">
-          Copiar Link de Solicitação
+        <button onClick={copyLink} className={`btn-secondary flex items-center gap-2 text-sm transition-colors ${copied ? 'border-green-600 text-green-400' : ''}`}>
+          {copied ? (
+            <>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Copiado!
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              Copiar Link de Solicitação
+            </>
+          )}
         </button>
       </div>
 
@@ -99,6 +116,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Request list */}
+      <div key={activeTab} className="tab-enter">
       {loading ? (
         <div className="text-center py-16 text-gray-500">Carregando...</div>
       ) : requests.length === 0 ? (
@@ -121,19 +139,19 @@ const Dashboard: React.FC = () => {
                   <span className="font-semibold text-white">{req.clientName}</span>
                   <StatusBadge status={req.status} />
                 </div>
-                <div className="text-sm text-gray-400 flex flex-wrap gap-x-4 gap-y-1">
-                  <span>{req.style}</span>
-                  <span>{req.size === 'SMALL' ? 'pequena' : req.size === 'MEDIUM' ? 'média' : 'grande'}</span>
-                  <span>{req.placement}</span>
+                <div className="text-sm text-gray-400 flex flex-wrap gap-2">
+                  <span className="bg-gray-800 px-2.5 py-0.5 rounded-full">{req.style}</span>
+                  <span className="bg-gray-800 px-2.5 py-0.5 rounded-full">{req.size} cm</span>
+                  <span className="bg-gray-800 px-2.5 py-0.5 rounded-full capitalize">{req.placement}</span>
                 </div>
                 <div className="text-xs text-gray-600 mt-1">
-                  {new Date(req.createdAt).toLocaleDateString('pt-BR')}
+                  {new Date(req.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 {req.quote && (
                   <span className="text-ink-400 font-semibold text-sm">
-                    ${req.quote.priceEstimate}
+                    R$ {req.quote.priceEstimate}
                   </span>
                 )}
                 <span className="text-gray-500 text-sm">Ver →</span>
@@ -142,6 +160,7 @@ const Dashboard: React.FC = () => {
           ))}
         </div>
       )}
+      </div>
     </div>
   )
 }

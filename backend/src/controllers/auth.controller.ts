@@ -38,7 +38,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     res.status(201).json({
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, studioName: user.studioName },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, studioName: user.studioName, slug: user.slug, whatsappMessage: user.whatsappMessage },
     });
   } catch (err) {
     console.error(err);
@@ -75,7 +75,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     res.json({
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, studioName: user.studioName },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, studioName: user.studioName, slug: user.slug, whatsappMessage: user.whatsappMessage },
     });
   } catch (err) {
     console.error(err);
@@ -87,12 +87,90 @@ export const me = async (req: Request & { userId?: string }, res: Response): Pro
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.userId },
-      select: { id: true, name: true, email: true, role: true, studioName: true, city: true, instagram: true },
+      select: { id: true, name: true, email: true, role: true, studioName: true, city: true, instagram: true, slug: true, whatsappMessage: true },
     });
     if (!user) {
       res.status(404).json({ error: 'User not found' });
       return;
     }
+    res.json(user);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const checkSlug = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { slug } = req.params;
+    if (!slug || slug.length < 3 || !/^[a-z0-9_-]+$/.test(slug)) {
+      res.json({ available: false, reason: 'Slug must be at least 3 characters (lowercase letters, numbers, hyphens)' });
+      return;
+    }
+    const reserved = ['admin', 'dashboard', 'login', 'register', 'request', 'requests', 'calendar', 'availability', 'api', 'settings'];
+    if (reserved.includes(slug)) {
+      res.json({ available: false, reason: 'This name is reserved' });
+      return;
+    }
+    const existing = await prisma.user.findUnique({ where: { slug } });
+    res.json({ available: !existing });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const updateSlug = async (req: Request & { userId?: string }, res: Response): Promise<void> => {
+  try {
+    const { slug } = req.body;
+    if (!slug || slug.length < 3 || !/^[a-z0-9_-]+$/.test(slug)) {
+      res.status(400).json({ error: 'Invalid slug format' });
+      return;
+    }
+    const existing = await prisma.user.findUnique({ where: { slug } });
+    if (existing && existing.id !== req.userId) {
+      res.status(409).json({ error: 'Slug already taken' });
+      return;
+    }
+    const user = await prisma.user.update({
+      where: { id: req.userId },
+      data: { slug },
+      select: { id: true, name: true, email: true, role: true, studioName: true, city: true, instagram: true, slug: true, whatsappMessage: true },
+    });
+    res.json(user);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const updateWhatsappMessage = async (req: Request & { userId?: string }, res: Response): Promise<void> => {
+  try {
+    const { whatsappMessage } = req.body;
+    const user = await prisma.user.update({
+      where: { id: req.userId },
+      data: { whatsappMessage: whatsappMessage || '' },
+      select: { id: true, name: true, email: true, role: true, studioName: true, city: true, instagram: true, slug: true, whatsappMessage: true },
+    });
+    res.json(user);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const updateStudioName = async (req: Request & { userId?: string }, res: Response): Promise<void> => {
+  try {
+    const { studioName } = req.body;
+    if (!studioName || studioName.trim().length < 2) {
+      res.status(400).json({ error: 'Nome muito curto' });
+      return;
+    }
+    const user = await prisma.user.update({
+      where: { id: req.userId },
+      data: { studioName: studioName.trim() },
+      select: { id: true, name: true, email: true, role: true, studioName: true, city: true, instagram: true, slug: true, whatsappMessage: true },
+    });
     res.json(user);
   } catch (err) {
     console.error(err);

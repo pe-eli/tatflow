@@ -7,6 +7,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   APPROVED: { label: 'Aprovado', className: 'bg-green-900/50 text-green-300 border border-green-700' },
   REJECTED: { label: 'Recusado', className: 'bg-red-900/50 text-red-300 border border-red-700' },
   SCHEDULED: { label: 'Agendado', className: 'bg-purple-900/50 text-purple-300 border border-purple-700' },
+  CANCELLED: { label: 'Cancelado', className: 'bg-orange-900/50 text-orange-300 border border-orange-700' },
   ACCEPTED: { label: 'Aceito', className: 'bg-green-900/50 text-green-300 border border-green-700' },
 }
 

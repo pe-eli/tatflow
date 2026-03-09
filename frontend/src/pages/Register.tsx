@@ -30,7 +30,7 @@ const Register: React.FC = () => {
     setLoading(true)
     try {
       const res = await authAPI.register({ ...form, role })
-      login(res.data.token, res.data.user)
+      login(res.data.token, res.data.user, true)
       navigate('/dashboard')
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
@@ -80,27 +80,27 @@ const Register: React.FC = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="label">Nome Completo *</label>
-                <input name="name" value={form.name} onChange={handleChange} className="input" placeholder="Seu nome" required />
+                <input name="name" value={form.name} onChange={handleChange} className="input" placeholder="Seu nome" maxLength={100} required />
               </div>
               <div>
                 <label className="label">Email *</label>
-                <input name="email" type="email" value={form.email} onChange={handleChange} className="input" placeholder="voce@estudio.com.br" required />
+                <input name="email" type="email" value={form.email} onChange={handleChange} className="input" placeholder="voce@estudio.com.br" maxLength={150} required />
               </div>
               <div>
                 <label className="label">Senha *</label>
-                <input name="password" type="password" value={form.password} onChange={handleChange} className="input" placeholder="Mín. 8 caracteres" minLength={8} required />
+                <input name="password" type="password" value={form.password} onChange={handleChange} className="input" placeholder="Mín. 8 caracteres" minLength={8} maxLength={128} required />
               </div>
               <div>
                 <label className="label">Nome do Estúdio</label>
-                <input name="studioName" value={form.studioName} onChange={handleChange} className="input" placeholder="Estúdio Ink & Soul" />
+                <input name="studioName" value={form.studioName} onChange={handleChange} className="input" placeholder="Estúdio Ink & Soul" maxLength={100} />
               </div>
               <div>
                 <label className="label">Cidade</label>
-                <input name="city" value={form.city} onChange={handleChange} className="input" placeholder="São Paulo" />
+                <input name="city" value={form.city} onChange={handleChange} className="input" placeholder="São Paulo" maxLength={80} />
               </div>
               <div>
                 <label className="label">Instagram (opcional)</label>
-                <input name="instagram" value={form.instagram} onChange={handleChange} className="input" placeholder="@seuEstudio" />
+                <input name="instagram" value={form.instagram} onChange={handleChange} className="input" placeholder="@seuEstudio" maxLength={50} />
               </div>
 
               {error && (

@@ -8,7 +8,15 @@ const Landing: React.FC = () => {
   return (
     <div className="flex flex-col min-h-[calc(100vh-4rem)]">
       {/* Hero */}
-      <section className="flex-1 flex flex-col items-center justify-center text-center px-4 py-24">
+      <section
+        className="hero-section flex-1 flex flex-col items-center justify-center text-center px-4 py-24 relative bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: 'url(/background-mobile.png)' }}
+      >
+        <style>{`
+          @media (min-width: 640px) {
+            .hero-section { background-image: url(/background.png) !important; }
+          }
+        `}</style>
         <div className="max-w-3xl mx-auto">
           <span className="inline-block text-ink-400 text-sm font-semibold tracking-widest uppercase mb-4">
             Gestão de Estúdio de Tatuagem
@@ -87,10 +95,6 @@ const Landing: React.FC = () => {
         </section>
       )}
 
-      {/* Footer */}
-      <footer className="border-t border-gray-800 py-6 text-center text-gray-600 text-sm">
-        © {new Date().getFullYear()} TatFlow. Feito para tatuadores.
-      </footer>
     </div>
   )
 }

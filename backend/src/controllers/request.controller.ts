@@ -4,6 +4,25 @@ import { AuthRequest } from '../middleware/auth';
 
 const prisma = new PrismaClient();
 
+export const resolveArtist = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { identifier } = req.params;
+    // Try finding by slug first, then by ID
+    let user = await prisma.user.findUnique({ where: { slug: identifier }, select: { id: true, name: true, studioName: true } });
+    if (!user) {
+      user = await prisma.user.findUnique({ where: { id: identifier }, select: { id: true, name: true, studioName: true } });
+    }
+    if (!user) {
+      res.status(404).json({ error: 'Artist not found' });
+      return;
+    }
+    res.json(user);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
 export const createRequest = async (req: Request, res: Response): Promise<void> => {
   try {
     const {

@@ -75,3 +75,50 @@ export const updateAppointment = async (req: AuthRequest, res: Response): Promis
     res.status(500).json({ error: 'Server error' });
   }
 };
+
+export const cancelAppointment = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const appointment = await prisma.appointment.findFirst({
+      where: { id, artistId: req.userId },
+    });
+    if (!appointment) {
+      res.status(404).json({ error: 'Appointment not found' });
+      return;
+    }
+
+    await prisma.appointment.delete({ where: { id } });
+    if (appointment.requestId) {
+      await prisma.tattooRequest.update({
+        where: { id: appointment.requestId },
+        data: { status: 'CANCELLED' },
+      });
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const createManualAppointment = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { clientName, date, startTime, endTime, notes } = req.body;
+
+    if (!clientName || !date || !startTime || !endTime) {
+      res.status(400).json({ error: 'Missing required fields' });
+      return;
+    }
+
+    const appointment = await prisma.appointment.create({
+      data: { artistId: req.userId!, clientName, date, startTime, endTime, notes },
+    });
+
+    res.status(201).json(appointment);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+};

@@ -6,6 +6,7 @@ import authRoutes from './routes/auth.routes';
 import requestRoutes from './routes/request.routes';
 import quoteRoutes from './routes/quote.routes';
 import appointmentRoutes from './routes/appointment.routes';
+import availabilityRoutes from './routes/availability.routes';
 
 dotenv.config();
 
@@ -20,6 +21,7 @@ app.use('/auth', authRoutes);
 app.use('/requests', requestRoutes);
 app.use('/quotes', quoteRoutes);
 app.use('/appointments', appointmentRoutes);
+app.use('/availability', availabilityRoutes);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'TatFlow API' }));
 
