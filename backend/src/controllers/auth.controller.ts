@@ -34,7 +34,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
-      res.status(409).json({ error: 'Email already in use' });
+      res.status(409).json({ error: 'Este e-mail já está em uso' });
       return;
     }
 
@@ -70,13 +70,13 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      res.status(401).json({ error: 'Invalid credentials' });
+      res.status(401).json({ error: 'E-mail ou senha inválidos' });
       return;
     }
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
-      res.status(401).json({ error: 'Invalid credentials' });
+      res.status(401).json({ error: 'E-mail ou senha inválidos' });
       return;
     }
 
@@ -103,7 +103,7 @@ export const me = async (req: AuthRequest, res: Response): Promise<void> => {
       select: USER_SELECT,
     });
     if (!user) {
-      res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'Usuário não encontrado' });
       return;
     }
     res.json(user);
@@ -117,14 +117,14 @@ export const checkSlug = async (req: Request, res: Response): Promise<void> => {
   try {
     const parsed = slugParamSchema.safeParse(req.params);
     if (!parsed.success) {
-      res.json({ available: false, reason: 'Invalid slug format' });
+      res.json({ available: false, reason: 'Formato de link inválido' });
       return;
     }
     const { slug } = parsed.data;
 
     const reserved = ['admin', 'dashboard', 'login', 'register', 'request', 'requests', 'calendar', 'availability', 'api', 'settings'];
     if (reserved.includes(slug)) {
-      res.json({ available: false, reason: 'This name is reserved' });
+      res.json({ available: false, reason: 'Este nome é reservado pelo sistema' });
       return;
     }
     const existing = await prisma.user.findUnique({ where: { slug } });
@@ -146,13 +146,13 @@ export const updateSlug = async (req: AuthRequest, res: Response): Promise<void>
 
     const reserved = ['admin', 'dashboard', 'login', 'register', 'request', 'requests', 'calendar', 'availability', 'api', 'settings'];
     if (reserved.includes(slug)) {
-      res.status(400).json({ error: 'This name is reserved' });
+      res.status(400).json({ error: 'Este nome é reservado pelo sistema' });
       return;
     }
 
     const existing = await prisma.user.findUnique({ where: { slug } });
     if (existing && existing.id !== req.user!.id) {
-      res.status(409).json({ error: 'Slug already taken' });
+      res.status(409).json({ error: 'Este link já está em uso' });
       return;
     }
     const user = await prisma.user.update({
