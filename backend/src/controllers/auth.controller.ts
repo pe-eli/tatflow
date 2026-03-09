@@ -1,23 +1,36 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma';
+import { getJwtSecret, AuthRequest } from '../middleware/auth';
+import {
+  registerSchema,
+  loginSchema,
+  updateSlugSchema,
+  updateWhatsappMessageSchema,
+  updateStudioNameSchema,
+  slugParamSchema,
+} from '../lib/validation';
+import { ZodError } from 'zod';
 
-const prisma = new PrismaClient();
+const USER_SELECT = {
+  id: true, name: true, email: true, role: true,
+  studioName: true, city: true, instagram: true,
+  slug: true, whatsappMessage: true,
+} as const;
+
+function formatZodError(err: ZodError) {
+  return err.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('; ');
+}
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, email, password, studioName, city, instagram, role } = req.body;
-
-    if (!name || !email || !password) {
-      res.status(400).json({ error: 'Name, email and password are required' });
+    const parsed = registerSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: formatZodError(parsed.error) });
       return;
     }
-
-    if (role !== 'ARTIST') {
-      res.status(400).json({ error: 'Only tattoo artists can register an account' });
-      return;
-    }
+    const { name, email, password, studioName, city, instagram } = parsed.data;
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
@@ -25,14 +38,14 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const hashed = await bcrypt.hash(password, 10);
+    const hashed = await bcrypt.hash(password, 12);
     const user = await prisma.user.create({
       data: { name, email, password: hashed, role: 'ARTIST', studioName, city, instagram },
     });
 
     const token = jwt.sign(
       { userId: user.id, role: user.role },
-      process.env.JWT_SECRET as string,
+      getJwtSecret(),
       { expiresIn: '7d' }
     );
 
@@ -41,19 +54,19 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       user: { id: user.id, name: user.name, email: user.email, role: user.role, studioName: user.studioName, slug: user.slug, whatsappMessage: user.whatsappMessage },
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('register error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      res.status(400).json({ error: 'Email and password are required' });
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: formatZodError(parsed.error) });
       return;
     }
+    const { email, password } = parsed.data;
 
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
@@ -69,7 +82,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     const token = jwt.sign(
       { userId: user.id, role: user.role },
-      process.env.JWT_SECRET as string,
+      getJwtSecret(),
       { expiresIn: '7d' }
     );
 
@@ -78,16 +91,16 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       user: { id: user.id, name: user.name, email: user.email, role: user.role, studioName: user.studioName, slug: user.slug, whatsappMessage: user.whatsappMessage },
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('login error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
-export const me = async (req: Request & { userId?: string }, res: Response): Promise<void> => {
+export const me = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: req.userId },
-      select: { id: true, name: true, email: true, role: true, studioName: true, city: true, instagram: true, slug: true, whatsappMessage: true },
+      where: { id: req.user!.id },
+      select: USER_SELECT,
     });
     if (!user) {
       res.status(404).json({ error: 'User not found' });
@@ -95,18 +108,20 @@ export const me = async (req: Request & { userId?: string }, res: Response): Pro
     }
     res.json(user);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('me error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 export const checkSlug = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { slug } = req.params;
-    if (!slug || slug.length < 3 || !/^[a-z0-9_-]+$/.test(slug)) {
-      res.json({ available: false, reason: 'Slug must be at least 3 characters (lowercase letters, numbers, hyphens)' });
+    const parsed = slugParamSchema.safeParse(req.params);
+    if (!parsed.success) {
+      res.json({ available: false, reason: 'Invalid slug format' });
       return;
     }
+    const { slug } = parsed.data;
+
     const reserved = ['admin', 'dashboard', 'login', 'register', 'request', 'requests', 'calendar', 'availability', 'api', 'settings'];
     if (reserved.includes(slug)) {
       res.json({ available: false, reason: 'This name is reserved' });
@@ -115,65 +130,81 @@ export const checkSlug = async (req: Request, res: Response): Promise<void> => {
     const existing = await prisma.user.findUnique({ where: { slug } });
     res.json({ available: !existing });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('checkSlug error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
-export const updateSlug = async (req: Request & { userId?: string }, res: Response): Promise<void> => {
+export const updateSlug = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { slug } = req.body;
-    if (!slug || slug.length < 3 || !/^[a-z0-9_-]+$/.test(slug)) {
-      res.status(400).json({ error: 'Invalid slug format' });
+    const parsed = updateSlugSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: formatZodError(parsed.error) });
       return;
     }
+    const { slug } = parsed.data;
+
+    const reserved = ['admin', 'dashboard', 'login', 'register', 'request', 'requests', 'calendar', 'availability', 'api', 'settings'];
+    if (reserved.includes(slug)) {
+      res.status(400).json({ error: 'This name is reserved' });
+      return;
+    }
+
     const existing = await prisma.user.findUnique({ where: { slug } });
-    if (existing && existing.id !== req.userId) {
+    if (existing && existing.id !== req.user!.id) {
       res.status(409).json({ error: 'Slug already taken' });
       return;
     }
     const user = await prisma.user.update({
-      where: { id: req.userId },
+      where: { id: req.user!.id },
       data: { slug },
-      select: { id: true, name: true, email: true, role: true, studioName: true, city: true, instagram: true, slug: true, whatsappMessage: true },
+      select: USER_SELECT,
     });
     res.json(user);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('updateSlug error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
-export const updateWhatsappMessage = async (req: Request & { userId?: string }, res: Response): Promise<void> => {
+export const updateWhatsappMessage = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { whatsappMessage } = req.body;
-    const user = await prisma.user.update({
-      where: { id: req.userId },
-      data: { whatsappMessage: whatsappMessage || '' },
-      select: { id: true, name: true, email: true, role: true, studioName: true, city: true, instagram: true, slug: true, whatsappMessage: true },
-    });
-    res.json(user);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
-  }
-};
-
-export const updateStudioName = async (req: Request & { userId?: string }, res: Response): Promise<void> => {
-  try {
-    const { studioName } = req.body;
-    if (!studioName || studioName.trim().length < 2) {
-      res.status(400).json({ error: 'Nome muito curto' });
+    const parsed = updateWhatsappMessageSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: formatZodError(parsed.error) });
       return;
     }
+    const { whatsappMessage } = parsed.data;
+
     const user = await prisma.user.update({
-      where: { id: req.userId },
-      data: { studioName: studioName.trim() },
-      select: { id: true, name: true, email: true, role: true, studioName: true, city: true, instagram: true, slug: true, whatsappMessage: true },
+      where: { id: req.user!.id },
+      data: { whatsappMessage },
+      select: USER_SELECT,
     });
     res.json(user);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('updateWhatsappMessage error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updateStudioName = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const parsed = updateStudioNameSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: formatZodError(parsed.error) });
+      return;
+    }
+    const { studioName } = parsed.data;
+
+    const user = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { studioName },
+      select: USER_SELECT,
+    });
+    res.json(user);
+  } catch (err) {
+    console.error('updateStudioName error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };

@@ -6,6 +6,6 @@ const router = Router();
 
 router.post('/', authenticate, createQuote);
 router.get('/', authenticate, getQuotesByArtist);
-router.patch('/:id/accept', acceptQuote); // Public: client accepts via link
+router.patch('/:id/accept', authenticate, acceptQuote);
 
 export default router;

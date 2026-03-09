@@ -1,71 +1,91 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
+import {
+  setAvailabilitySchema,
+  availableSlotsQuerySchema,
+  artistIdParamSchema,
+} from '../lib/validation';
+import { ZodError } from 'zod';
 
-const prisma = new PrismaClient();
+function formatZodError(err: ZodError) {
+  return err.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('; ');
+}
 
 // Public — get artist's weekly schedule
 export const getArtistAvailability = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { artistId } = req.params;
+    const paramParsed = artistIdParamSchema.safeParse(req.params);
+    if (!paramParsed.success) {
+      res.status(400).json({ error: 'Invalid artist ID' });
+      return;
+    }
+
     const availability = await prisma.availability.findMany({
-      where: { artistId },
+      where: { artistId: paramParsed.data.artistId },
       orderBy: { dayOfWeek: 'asc' },
     });
     res.json(availability);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('getArtistAvailability error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 // Protected — artist sets weekly availability (replaces all)
 export const setArtistAvailability = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { schedule } = req.body;
-    // schedule: Array<{ dayOfWeek: number, startTime: string, endTime: string, slotDuration?: number }>
-
-    if (!Array.isArray(schedule)) {
-      res.status(400).json({ error: 'schedule must be an array' });
+    const parsed = setAvailabilitySchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: formatZodError(parsed.error) });
       return;
     }
 
-    // Delete existing availability
-    await prisma.availability.deleteMany({ where: { artistId: req.userId! } });
+    const artistId = req.user!.id;
+
+    // Delete existing availability for THIS artist only
+    await prisma.availability.deleteMany({ where: { artistId } });
 
     // Create new entries
-    const entries = schedule.map((s: { dayOfWeek: number; startTime: string; endTime: string; slotDuration?: number }) => ({
-      artistId: req.userId!,
+    const entries = parsed.data.schedule.map((s) => ({
+      artistId,
       dayOfWeek: s.dayOfWeek,
       startTime: s.startTime,
       endTime: s.endTime,
-      slotDuration: s.slotDuration || 60,
+      slotDuration: s.slotDuration,
     }));
 
     await prisma.availability.createMany({ data: entries });
 
     const result = await prisma.availability.findMany({
-      where: { artistId: req.userId! },
+      where: { artistId },
       orderBy: { dayOfWeek: 'asc' },
     });
 
     res.json(result);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('setArtistAvailability error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 // Public — get available time slots for a specific date
 export const getAvailableSlots = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { artistId } = req.params;
-    const { date } = req.query; // "YYYY-MM-DD"
-
-    if (!date || typeof date !== 'string') {
-      res.status(400).json({ error: 'date query param is required (YYYY-MM-DD)' });
+    const paramParsed = artistIdParamSchema.safeParse(req.params);
+    if (!paramParsed.success) {
+      res.status(400).json({ error: 'Invalid artist ID' });
       return;
     }
+
+    const queryParsed = availableSlotsQuerySchema.safeParse(req.query);
+    if (!queryParsed.success) {
+      res.status(400).json({ error: formatZodError(queryParsed.error) });
+      return;
+    }
+
+    const { artistId } = paramParsed.data;
+    const { date } = queryParsed.data;
 
     // Determine day of week (JS: 0=Sunday)
     const dateObj = new Date(date + 'T12:00:00');
@@ -110,15 +130,14 @@ export const getAvailableSlots = async (req: Request, res: Response): Promise<vo
       return !appointments.some((appt) => {
         const apptStart = timeToMinutes(appt.startTime);
         const apptEnd = timeToMinutes(appt.endTime);
-        // Overlap check
         return slotStart < apptEnd && slotEnd > apptStart;
       });
     });
 
     res.json({ date, dayOfWeek, slots: available });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('getAvailableSlots error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 

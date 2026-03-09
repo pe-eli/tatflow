@@ -2,11 +2,27 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { requestAPI, availabilityAPI } from '../services/api'
 import { Availability, TimeSlot } from '../types'
-import { BodySelector, BodyPartSelection, BODY_REGION_LABELS } from '../components/BodySelector'
-
 const STYLES = [
   'Traço Fino', 'Realismo', 'Tradicional', 'Neo-Tradicional', 'Blackwork',
   'Geométrico', 'Aquarela', 'Japonesa', 'Tribal', 'Minimalista', 'Outro',
+]
+
+const PLACEMENT_OPTIONS = [
+  'Cabeça', 'Pescoço', 'Peito', 'Abdômen', 'Costas', 'Quadril',
+  'Ombro Esquerdo', 'Ombro Direito',
+  'Braço Esquerdo', 'Braço Direito',
+  'Antebraço Esquerdo', 'Antebraço Direito',
+  'Mão Esquerda', 'Mão Direita',
+  'Coxa Esquerda', 'Coxa Direita',
+  'Panturrilha Esquerda', 'Panturrilha Direita',
+  'Pé Esquerdo', 'Pé Direito',
+]
+
+const SIZE_OPTIONS = [
+  'Pequena (5–10 cm)',
+  'Média (10–20 cm)',
+  'Grande (20–40 cm)',
+  'Manga / Costas inteiras',
 ]
 
 /** Apply visual phone mask: (XX) XXXXX-XXXX */
@@ -41,9 +57,11 @@ const RequestForm: React.FC = () => {
     return new Date(now.getFullYear(), now.getMonth(), 1)
   })
 
+  const [selectedPlacements, setSelectedPlacements] = useState<string[]>([])
+
   const [form, setForm] = useState({
     clientName: '', clientEmail: '', clientPhone: '',
-    placement: '', size: '', style: STYLES[0],
+    size: '', style: STYLES[0],
     description: '',
   })
 
@@ -146,8 +164,8 @@ const RequestForm: React.FC = () => {
       return
     }
 
-    if (!form.placement || !form.size) {
-      setError('Selecione a localização e o tamanho da tatuagem no modelo 3D.')
+    if (selectedPlacements.length === 0 || !form.size) {
+      setError('Selecione pelo menos uma região e o tamanho da tatuagem.')
       return
     }
 
@@ -157,6 +175,7 @@ const RequestForm: React.FC = () => {
       Object.entries(form).forEach(([k, v]) => {
         fd.append(k, k === 'clientPhone' ? v.replace(/\D/g, '') : v)
       })
+      fd.append('placement', selectedPlacements.join(', '))
       fd.append('artistId', resolvedArtistId!)
       fd.append('preferredDate', selectedDate)
       fd.append('preferredTime', selectedSlot.startTime)
@@ -242,21 +261,46 @@ const RequestForm: React.FC = () => {
             </h2>
             <div className="space-y-4">
               <div>
-                <label className="label">Localização e Tamanho *</label>
-                <BodySelector
-                  onSelect={(data: BodyPartSelection) => {
-                    setForm((prev) => ({
-                      ...prev,
-                      placement: data.bodyParts.map((bp) => BODY_REGION_LABELS[bp]).join(', '),
-                      size: String(data.estimatedCm),
-                    }))
-                  }}
-                />
-                {form.placement && form.size && (
-                  <p className="text-xs text-gray-500 mt-2">
-                    Selecionado: <strong className="text-gray-300">{form.placement}</strong> — {form.size} cm
-                  </p>
-                )}
+                <label className="label">Localização *</label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Selecione até 7 regiões{selectedPlacements.length > 0 ? ` (${selectedPlacements.length}/7 selecionada${selectedPlacements.length > 1 ? 's' : ''})` : ''}
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {PLACEMENT_OPTIONS.map((region) => {
+                    const isSelected = selectedPlacements.includes(region)
+                    const maxReached = selectedPlacements.length >= 7
+                    return (
+                      <button
+                        key={region}
+                        type="button"
+                        disabled={!isSelected && maxReached}
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedPlacements((prev) => prev.filter((p) => p !== region))
+                          } else if (!maxReached) {
+                            setSelectedPlacements((prev) => [...prev, region])
+                          }
+                        }}
+                        className={`py-2 px-3 rounded-lg text-sm text-left border transition-colors ${
+                          isSelected
+                            ? 'border-ink-500 bg-ink-900/40 text-ink-300 font-medium'
+                            : maxReached
+                            ? 'border-gray-800 text-gray-600 cursor-not-allowed'
+                            : 'border-gray-700 text-gray-300 hover:border-gray-500 hover:bg-gray-800/50'
+                        }`}
+                      >
+                        {region}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <div>
+                <label className="label">Tamanho *</label>
+                <select name="size" value={form.size} onChange={handleChange} className="input" required>
+                  <option value="">Selecione o tamanho</option>
+                  {SIZE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
               </div>
               <div>
                 <label className="label">Estilo *</label>
