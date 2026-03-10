@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { randomUUID } from 'crypto';
 import prisma from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import {
@@ -7,6 +8,29 @@ import {
   artistIdParamSchema,
 } from '../lib/validation';
 import { ZodError } from 'zod';
+
+interface DbAvailabilityRow {
+  id: string;
+  artistId: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  lunchStart: string | null;
+  lunchEnd: string | null;
+  slotDuration: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface DbAvailabilityBlockRow {
+  id: string;
+  artistId: string;
+  date: string;
+  startTime: string | null;
+  endTime: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 function formatZodError(err: ZodError) {
   return err.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('; ');
@@ -21,11 +45,23 @@ export const getArtistAvailability = async (req: Request, res: Response): Promis
       return;
     }
 
-    const availability = await prisma.availability.findMany({
-      where: { artistId: paramParsed.data.artistId },
-      orderBy: { dayOfWeek: 'asc' },
-    });
-    res.json(availability);
+    const artistId = paramParsed.data.artistId;
+    const [schedule, blockedPeriods] = await prisma.$transaction([
+      prisma.$queryRaw<DbAvailabilityRow[]>`
+        SELECT *
+        FROM "Availability"
+        WHERE "artistId" = ${artistId}
+        ORDER BY "dayOfWeek" ASC
+      `,
+      prisma.$queryRaw<DbAvailabilityBlockRow[]>`
+        SELECT *
+        FROM "AvailabilityBlock"
+        WHERE "artistId" = ${artistId}
+        ORDER BY "date" ASC, "startTime" ASC NULLS FIRST
+      `,
+    ]);
+
+    res.json({ schedule, blockedPeriods });
   } catch (err) {
     console.error('getArtistAvailability error:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -43,26 +79,69 @@ export const setArtistAvailability = async (req: AuthRequest, res: Response): Pr
 
     const artistId = req.user!.id;
 
-    // Delete existing availability for THIS artist only
-    await prisma.availability.deleteMany({ where: { artistId } });
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        DELETE FROM "AvailabilityBlock"
+        WHERE "artistId" = ${artistId}
+      `;
 
-    // Create new entries
-    const entries = parsed.data.schedule.map((s) => ({
-      artistId,
-      dayOfWeek: s.dayOfWeek,
-      startTime: s.startTime,
-      endTime: s.endTime,
-      slotDuration: s.slotDuration,
-    }));
+      await tx.$executeRaw`
+        DELETE FROM "Availability"
+        WHERE "artistId" = ${artistId}
+      `;
 
-    await prisma.availability.createMany({ data: entries });
+      for (const entry of parsed.data.schedule) {
+        await tx.$executeRaw`
+          INSERT INTO "Availability" (
+            "id", "artistId", "dayOfWeek", "startTime", "endTime", "lunchStart", "lunchEnd", "slotDuration", "createdAt", "updatedAt"
+          ) VALUES (
+            ${randomUUID()},
+            ${artistId},
+            ${entry.dayOfWeek},
+            ${entry.startTime},
+            ${entry.endTime},
+            ${entry.lunchStart ?? null},
+            ${entry.lunchEnd ?? null},
+            ${entry.slotDuration},
+            NOW(),
+            NOW()
+          )
+        `;
+      }
 
-    const result = await prisma.availability.findMany({
-      where: { artistId },
-      orderBy: { dayOfWeek: 'asc' },
+      for (const block of parsed.data.blockedPeriods) {
+        await tx.$executeRaw`
+          INSERT INTO "AvailabilityBlock" (
+            "id", "artistId", "date", "startTime", "endTime", "createdAt", "updatedAt"
+          ) VALUES (
+            ${randomUUID()},
+            ${artistId},
+            ${block.date},
+            ${block.startTime ?? null},
+            ${block.endTime ?? null},
+            NOW(),
+            NOW()
+          )
+        `;
+      }
     });
 
-    res.json(result);
+    const [schedule, blockedPeriods] = await prisma.$transaction([
+      prisma.$queryRaw<DbAvailabilityRow[]>`
+        SELECT *
+        FROM "Availability"
+        WHERE "artistId" = ${artistId}
+        ORDER BY "dayOfWeek" ASC
+      `,
+      prisma.$queryRaw<DbAvailabilityBlockRow[]>`
+        SELECT *
+        FROM "AvailabilityBlock"
+        WHERE "artistId" = ${artistId}
+        ORDER BY "date" ASC, "startTime" ASC NULLS FIRST
+      `,
+    ]);
+
+    res.json({ schedule, blockedPeriods });
   } catch (err) {
     console.error('setArtistAvailability error:', err);
     res.status(500).json({ error: 'Internal server error' });
@@ -86,17 +165,48 @@ export const getAvailableSlots = async (req: Request, res: Response): Promise<vo
 
     const { artistId } = paramParsed.data;
     const { date } = queryParsed.data;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const requestedDate = new Date(date + 'T12:00:00');
+    requestedDate.setHours(0, 0, 0, 0);
+
+    if (requestedDate <= today) {
+      res.json({ date, slots: [] });
+      return;
+    }
 
     // Determine day of week (JS: 0=Sunday)
     const dateObj = new Date(date + 'T12:00:00');
     const dayOfWeek = dateObj.getDay();
 
     // Get availability for this day
-    const availability = await prisma.availability.findFirst({
-      where: { artistId, dayOfWeek },
-    });
+    const [availabilityRows, blockedPeriods, appointments] = await prisma.$transaction([
+      prisma.$queryRaw<DbAvailabilityRow[]>`
+        SELECT *
+        FROM "Availability"
+        WHERE "artistId" = ${artistId} AND "dayOfWeek" = ${dayOfWeek}
+        LIMIT 1
+      `,
+      prisma.$queryRaw<DbAvailabilityBlockRow[]>`
+        SELECT *
+        FROM "AvailabilityBlock"
+        WHERE "artistId" = ${artistId} AND "date" = ${date}
+      `,
+      prisma.appointment.findMany({
+        where: { artistId, date },
+      }),
+    ]);
+
+    const availability = availabilityRows[0];
 
     if (!availability) {
+      res.json({ date, slots: [] });
+      return;
+    }
+
+    const hasFullDayBlock = blockedPeriods.some((block) => !block.startTime && !block.endTime);
+    if (hasFullDayBlock) {
       res.json({ date, slots: [] });
       return;
     }
@@ -116,16 +226,32 @@ export const getAvailableSlots = async (req: Request, res: Response): Promise<vo
       const em = ((m + slotDuration) % 60).toString().padStart(2, '0');
       allSlots.push({ startTime: `${sh}:${sm}`, endTime: `${eh}:${em}` });
     }
+    const lunchStart = availability.lunchStart ? timeToMinutes(availability.lunchStart) : null;
+    const lunchEnd = availability.lunchEnd ? timeToMinutes(availability.lunchEnd) : null;
 
-    // Get booked appointments for this date
-    const appointments = await prisma.appointment.findMany({
-      where: { artistId, date },
-    });
-
-    // Filter out slots that overlap with existing appointments
+    // Filter out slots that overlap with lunch break, blocked periods, or existing appointments
     const available = allSlots.filter((slot) => {
       const slotStart = timeToMinutes(slot.startTime);
       const slotEnd = timeToMinutes(slot.endTime);
+
+      const overlapsLunch = lunchStart !== null && lunchEnd !== null && slotStart < lunchEnd && slotEnd > lunchStart;
+      if (overlapsLunch) {
+        return false;
+      }
+
+      const overlapsBlockedPeriod = blockedPeriods.some((block) => {
+        if (!block.startTime || !block.endTime) {
+          return false;
+        }
+
+        const blockStart = timeToMinutes(block.startTime);
+        const blockEnd = timeToMinutes(block.endTime);
+        return slotStart < blockEnd && slotEnd > blockStart;
+      });
+
+      if (overlapsBlockedPeriod) {
+        return false;
+      }
 
       return !appointments.some((appt) => {
         const apptStart = timeToMinutes(appt.startTime);

@@ -23,9 +23,9 @@ export const resolveArtist = async (req: Request, res: Response): Promise<void> 
     }
     const { identifier } = parsed.data;
 
-    let user = await prisma.user.findUnique({ where: { slug: identifier }, select: { id: true, name: true, studioName: true } });
+    let user = await prisma.user.findUnique({ where: { slug: identifier }, select: { id: true, name: true, studioName: true, requireReferenceImages: true } });
     if (!user) {
-      user = await prisma.user.findUnique({ where: { id: identifier }, select: { id: true, name: true, studioName: true } });
+      user = await prisma.user.findUnique({ where: { id: identifier }, select: { id: true, name: true, studioName: true, requireReferenceImages: true } });
     }
     if (!user) {
       res.status(404).json({ error: 'Artist not found' });

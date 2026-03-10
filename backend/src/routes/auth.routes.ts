@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { register, login, me, checkSlug, updateSlug, updateWhatsappMessage, updateStudioName } from '../controllers/auth.controller';
+import { register, login, me, checkSlug, updateSlug, updateWhatsappMessage, updateStudioName, updateRequireReferenceImages } from '../controllers/auth.controller';
 import { authenticate } from '../middleware/auth';
 
 const router = Router();
@@ -11,5 +11,6 @@ router.get('/check-slug/:slug', checkSlug);
 router.patch('/slug', authenticate, updateSlug);
 router.patch('/whatsapp-message', authenticate, updateWhatsappMessage);
 router.patch('/studio-name', authenticate, updateStudioName);
+router.patch('/require-reference-images', authenticate, updateRequireReferenceImages);
 
 export default router;

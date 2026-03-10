@@ -29,6 +29,10 @@ export const updateStudioNameSchema = z.object({
   studioName: z.string().min(2, 'Nome do estúdio deve ter pelo menos 2 caracteres').max(100).transform((v) => v.trim()),
 });
 
+export const updateRequireReferenceImagesSchema = z.object({
+  requireReferenceImages: z.boolean(),
+});
+
 // === Tattoo Requests ===
 
 export const createRequestSchema = z.object({
@@ -101,11 +105,73 @@ const scheduleEntrySchema = z.object({
   dayOfWeek: z.number().int().min(0).max(6),
   startTime: z.string().regex(timeRegex, 'Time must be HH:MM'),
   endTime: z.string().regex(timeRegex, 'Time must be HH:MM'),
+  lunchStart: z.string().regex(timeRegex, 'Time must be HH:MM').optional(),
+  lunchEnd: z.string().regex(timeRegex, 'Time must be HH:MM').optional(),
   slotDuration: z.number().int().min(15).max(480).optional().default(60),
+}).superRefine((value, ctx) => {
+  if ((value.lunchStart && !value.lunchEnd) || (!value.lunchStart && value.lunchEnd)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['lunchStart'],
+      message: 'Lunch break requires both start and end times',
+    });
+  }
+
+  if (value.startTime >= value.endTime) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['startTime'],
+      message: 'startTime must be earlier than endTime',
+    });
+  }
+
+  if (value.lunchStart && value.lunchEnd) {
+    if (value.lunchStart >= value.lunchEnd) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['lunchStart'],
+        message: 'lunchStart must be earlier than lunchEnd',
+      });
+    }
+
+    if (value.lunchStart < value.startTime || value.lunchEnd > value.endTime) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['lunchStart'],
+        message: 'Lunch break must stay within the working hours',
+      });
+    }
+  }
+});
+
+const availabilityBlockSchema = z.object({
+  date: z.string().regex(dateRegex, 'Date must be YYYY-MM-DD'),
+  startTime: z.string().regex(timeRegex, 'Time must be HH:MM').optional(),
+  endTime: z.string().regex(timeRegex, 'Time must be HH:MM').optional(),
+}).superRefine((value, ctx) => {
+  const hasStart = !!value.startTime
+  const hasEnd = !!value.endTime
+
+  if (hasStart !== hasEnd) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['startTime'],
+      message: 'Blocked time range requires both startTime and endTime',
+    })
+  }
+
+  if (hasStart && hasEnd && value.startTime! >= value.endTime!) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['startTime'],
+      message: 'startTime must be earlier than endTime',
+    })
+  }
 });
 
 export const setAvailabilitySchema = z.object({
   schedule: z.array(scheduleEntrySchema).min(0).max(21),
+  blockedPeriods: z.array(availabilityBlockSchema).max(365).optional().default([]),
 });
 
 export const availableSlotsQuerySchema = z.object({

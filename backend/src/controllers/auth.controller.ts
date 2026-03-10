@@ -9,6 +9,7 @@ import {
   updateSlugSchema,
   updateWhatsappMessageSchema,
   updateStudioNameSchema,
+  updateRequireReferenceImagesSchema,
   slugParamSchema,
 } from '../lib/validation';
 import { ZodError } from 'zod';
@@ -16,7 +17,7 @@ import { ZodError } from 'zod';
 const USER_SELECT = {
   id: true, name: true, email: true, role: true,
   studioName: true, city: true, instagram: true,
-  slug: true, whatsappMessage: true,
+  slug: true, whatsappMessage: true, requireReferenceImages: true,
 } as const;
 
 function formatZodError(err: ZodError) {
@@ -62,7 +63,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     res.status(201).json({
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, studioName: user.studioName, slug: user.slug, whatsappMessage: user.whatsappMessage },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, studioName: user.studioName, slug: user.slug, whatsappMessage: user.whatsappMessage, requireReferenceImages: false },
     });
   } catch (err) {
     console.error('register error:', err);
@@ -99,7 +100,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     res.json({
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role, studioName: user.studioName, slug: user.slug, whatsappMessage: user.whatsappMessage },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, studioName: user.studioName, slug: user.slug, whatsappMessage: user.whatsappMessage, requireReferenceImages: user.requireReferenceImages },
     });
   } catch (err) {
     console.error('login error:', err);
@@ -216,6 +217,27 @@ export const updateStudioName = async (req: AuthRequest, res: Response): Promise
     res.json(user);
   } catch (err) {
     console.error('updateStudioName error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updateRequireReferenceImages = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const parsed = updateRequireReferenceImagesSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: formatZodError(parsed.error) });
+      return;
+    }
+    const { requireReferenceImages } = parsed.data;
+
+    const user = await prisma.user.update({
+      where: { id: req.user!.id },
+      data: { requireReferenceImages },
+      select: USER_SELECT,
+    });
+    res.json(user);
+  } catch (err) {
+    console.error('updateRequireReferenceImages error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

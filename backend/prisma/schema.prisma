@@ -17,13 +17,15 @@ model User {
   studioName      String?
   city            String?
   instagram       String?
-  whatsappMessage String?         @default("Olá! Segue o orçamento da sua tatuagem:")
-  createdAt       DateTime        @default(now())
+  whatsappMessage        String?         @default("Olá! Segue o orçamento da sua tatuagem:")
+  requireReferenceImages Boolean         @default(false)
+  createdAt              DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   requests        TattooRequest[]
   quotes          Quote[]
   appointments    Appointment[]
   availabilities  Availability[]
+  availabilityBlocks AvailabilityBlock[]
 }
 
 enum Role {
@@ -103,7 +105,20 @@ model Availability {
   dayOfWeek    Int      // 0=dom, 1=seg, ..., 6=sab
   startTime    String   // "09:00"
   endTime      String   // "18:00"
+  lunchStart   String?
+  lunchEnd     String?
   slotDuration Int      @default(60)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model AvailabilityBlock {
+  id        String   @id @default(cuid())
+  artistId  String
+  artist    User     @relation(fields: [artistId], references: [id])
+  date      String
+  startTime String?
+  endTime   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
