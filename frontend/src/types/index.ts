@@ -10,6 +10,7 @@ export interface User {
   instagram?: string
   slug?: string
   whatsappMessage?: string
+  requireReferenceImages?: boolean
 }
 
 export type RequestStatus = 'PENDING' | 'QUOTED' | 'APPROVED' | 'REJECTED' | 'SCHEDULED' | 'CANCELLED'
@@ -63,7 +64,22 @@ export interface Availability {
   dayOfWeek: number
   startTime: string
   endTime: string
+  lunchStart?: string | null
+  lunchEnd?: string | null
   slotDuration: number
+}
+
+export interface AvailabilityBlock {
+  id?: string
+  artistId?: string
+  date: string
+  startTime?: string | null
+  endTime?: string | null
+}
+
+export interface AvailabilityConfig {
+  schedule: Availability[]
+  blockedPeriods: AvailabilityBlock[]
 }
 
 export interface TimeSlot {

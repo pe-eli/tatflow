@@ -42,6 +42,7 @@ export const authAPI = {
   updateSlug: (slug: string) => api.patch('/auth/slug', { slug }),
   updateWhatsappMessage: (whatsappMessage: string) => api.patch('/auth/whatsapp-message', { whatsappMessage }),
   updateStudioName: (studioName: string) => api.patch('/auth/studio-name', { studioName }),
+  updateRequireReferenceImages: (requireReferenceImages: boolean) => api.patch('/auth/require-reference-images', { requireReferenceImages }),
 }
 
 // Requests
@@ -77,8 +78,22 @@ export const appointmentAPI = {
 // Availability
 export const availabilityAPI = {
   get: (artistId: string) => api.get(`/availability/${artistId}`),
-  set: (schedule: { dayOfWeek: number; startTime: string; endTime: string; slotDuration?: number }[]) =>
-    api.put('/availability', { schedule }),
+  set: (data: {
+    schedule: {
+      dayOfWeek: number
+      startTime: string
+      endTime: string
+      lunchStart?: string
+      lunchEnd?: string
+      slotDuration?: number
+    }[]
+    blockedPeriods: {
+      date: string
+      startTime?: string
+      endTime?: string
+    }[]
+  }) =>
+    api.put('/availability', data),
   getSlots: (artistId: string, date: string) =>
     api.get(`/availability/${artistId}/slots`, { params: { date } }),
 }

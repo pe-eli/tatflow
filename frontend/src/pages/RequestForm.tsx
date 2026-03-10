@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { requestAPI, availabilityAPI, extractApiError } from '../services/api'
-import { Availability, TimeSlot } from '../types'
+import { Availability, AvailabilityBlock, AvailabilityConfig, TimeSlot } from '../types'
 const STYLES = [
   'Traço Fino', 'Realismo', 'Tradicional', 'Neo-Tradicional', 'Blackwork',
   'Geométrico', 'Aquarela', 'Japonesa', 'Tribal', 'Minimalista', 'Outro',
@@ -42,9 +42,11 @@ const RequestForm: React.FC = () => {
   const [artistName, setArtistName] = useState('')
   const [resolvedArtistId, setResolvedArtistId] = useState<string | null>(null)
   const [loadingArtist, setLoadingArtist] = useState(true)
+  const [requireRefImages, setRequireRefImages] = useState(false)
 
   // Availability state
   const [availability, setAvailability] = useState<Availability[]>([])
+  const [blockedPeriods, setBlockedPeriods] = useState<AvailabilityBlock[]>([])
   const [loadingAvailability, setLoadingAvailability] = useState(true)
   const [selectedDate, setSelectedDate] = useState('')
   const [slots, setSlots] = useState<TimeSlot[]>([])
@@ -65,16 +67,38 @@ const RequestForm: React.FC = () => {
     description: '',
   })
 
+  const tomorrowDate = useCallback(() => {
+    const date = new Date()
+    date.setHours(0, 0, 0, 0)
+    date.setDate(date.getDate() + 1)
+    return date
+  }, [])
+
+  const toDateInputValue = useCallback((date: Date) => {
+    const year = date.getFullYear()
+    const month = `${date.getMonth() + 1}`.padStart(2, '0')
+    const day = `${date.getDate()}`.padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }, [])
+
   // Resolve artist by slug or ID
   useEffect(() => {
     if (!artistId) return
     requestAPI.resolveArtist(artistId).then((res) => {
       setResolvedArtistId(res.data.id)
       setArtistName(res.data.studioName || res.data.name)
+      setRequireRefImages(!!res.data.requireReferenceImages)
       setLoadingArtist(false)
-    }).catch(() => {
+    }).catch((err) => {
       setLoadingArtist(false)
-      setError('Tatuador não encontrado.')
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 404) {
+        setError('Tatuador não encontrado. Verifique se o link está correto.')
+      } else if (!status) {
+        setError('Não foi possível conectar ao servidor. Verifique sua conexão.')
+      } else {
+        setError('Erro ao carregar perfil do tatuador. Tente novamente.')
+      }
     })
   }, [artistId])
 
@@ -82,7 +106,9 @@ const RequestForm: React.FC = () => {
   useEffect(() => {
     if (!resolvedArtistId) return
     availabilityAPI.get(resolvedArtistId).then((res) => {
-      setAvailability(res.data)
+      const data: AvailabilityConfig = res.data
+      setAvailability(data.schedule)
+      setBlockedPeriods(data.blockedPeriods)
       setLoadingAvailability(false)
     }).catch(() => setLoadingAvailability(false))
   }, [resolvedArtistId])
@@ -96,10 +122,15 @@ const RequestForm: React.FC = () => {
       setSlots(res.data.slots)
       setLoadingSlots(false)
     }).catch(() => setLoadingSlots(false))
-  }, [selectedDate, artistId])
+  }, [selectedDate, resolvedArtistId])
 
   // Available days of the week (Set of dayOfWeek numbers)
   const availableDays = new Set(availability.map((a) => a.dayOfWeek))
+  const fullyBlockedDates = new Set(
+    blockedPeriods
+      .filter((block) => !block.startTime && !block.endTime)
+      .map((block) => block.date)
+  )
 
   // Calendar helpers
   const calendarDays = useCallback(() => {
@@ -107,8 +138,7 @@ const RequestForm: React.FC = () => {
     const month = calendarMonth.getMonth()
     const firstDay = new Date(year, month, 1).getDay()
     const daysInMonth = new Date(year, month + 1, 0).getDate()
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const firstSelectableDate = tomorrowDate()
 
     const cells: { date: Date; enabled: boolean; isCurrentMonth: boolean }[] = []
 
@@ -122,8 +152,9 @@ const RequestForm: React.FC = () => {
     for (let d = 1; d <= daysInMonth; d++) {
       const date = new Date(year, month, d)
       const dayOfWeek = date.getDay()
-      const inFuture = date >= today
-      const enabled = inFuture && availableDays.has(dayOfWeek)
+      const dateStr = toDateInputValue(date)
+      const inFuture = date >= firstSelectableDate
+      const enabled = inFuture && availableDays.has(dayOfWeek) && !fullyBlockedDates.has(dateStr)
       cells.push({ date, enabled, isCurrentMonth: true })
     }
 
@@ -137,7 +168,7 @@ const RequestForm: React.FC = () => {
     }
 
     return cells
-  }, [calendarMonth, availableDays])
+  }, [availableDays, calendarMonth, fullyBlockedDates, toDateInputValue, tomorrowDate])
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -152,7 +183,12 @@ const RequestForm: React.FC = () => {
   }
 
   const selectDate = (dateStr: string) => {
+    if (dateStr < toDateInputValue(tomorrowDate())) {
+      setError('A seleção de datas começa sempre a partir de amanhã.')
+      return
+    }
     setSelectedDate(dateStr)
+    setError('')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -164,8 +200,18 @@ const RequestForm: React.FC = () => {
       return
     }
 
+    if (selectedDate < toDateInputValue(tomorrowDate())) {
+      setError('A data escolhida precisa ser a partir de amanhã.')
+      return
+    }
+
     if (selectedPlacements.length === 0 || !form.size) {
       setError('Selecione pelo menos uma região e o tamanho da tatuagem.')
+      return
+    }
+
+    if (requireRefImages && files.length === 0) {
+      setError('Este tatuador exige ao menos uma imagem de referência para enviar a solicitação.')
       return
     }
 
@@ -226,7 +272,7 @@ const RequestForm: React.FC = () => {
     <div className="max-w-2xl mx-auto px-4 py-10">
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-white">Solicitar Orçamento de Tatuagem</h1>
-        {artistName && <p className="text-gray-300 mt-1">Tatuador(a): <strong>{artistName}</strong></p>}
+        {artistName && <p className="text-gray-300 mt-1"><strong>{artistName}</strong></p>}
         <p className="text-gray-400 mt-2">Preencha os detalhes abaixo e o tatuador retornará em breve.</p>
       </div>
       <div className="card">
@@ -321,7 +367,14 @@ const RequestForm: React.FC = () => {
                 <p className="text-xs text-gray-500 mt-1 text-right">{form.description.length}/300</p>
               </div>
               <div>
-                <label className="label">Imagens de Referência (até 5)</label>
+                <label className="label">
+                  Imagens de Referência{requireRefImages ? ' *' : ' (até 5)'}
+                </label>
+                {requireRefImages && (
+                  <p className="text-xs text-yellow-400 mb-2">
+                    Este tatuador exige ao menos uma imagem de referência para enviar a solicitação.
+                  </p>
+                )}
                 <label className="flex items-center gap-3 cursor-pointer">
                   <span className="inline-flex items-center gap-2 bg-ink-700 hover:bg-ink-600 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors flex-shrink-0">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -362,6 +415,7 @@ const RequestForm: React.FC = () => {
                       type="date"
                       value={selectedDate}
                       onChange={(e) => setSelectedDate(e.target.value)}
+                      min={toDateInputValue(tomorrowDate())}
                       className="input"
                     />
                   </div>
@@ -412,7 +466,7 @@ const RequestForm: React.FC = () => {
                   {/* Calendar grid */}
                   <div className="grid grid-cols-7 gap-1">
                     {days.map(({ date, enabled, isCurrentMonth }, idx) => {
-                      const dateStr = date.toISOString().split('T')[0]
+                      const dateStr = toDateInputValue(date)
                       const isSelected = dateStr === selectedDate
                       const isToday = date.toDateString() === new Date().toDateString()
 

@@ -21,6 +21,10 @@ const Settings: React.FC = () => {
   const [whatsappMsg, setWhatsappMsg] = useState(user?.whatsappMessage || '')
   const [savingMsg, setSavingMsg] = useState(false)
 
+  // Reference images requirement
+  const [requireRefImages, setRequireRefImages] = useState(user?.requireReferenceImages ?? false)
+  const [savingRefImages, setSavingRefImages] = useState(false)
+
   const handleStudioNameSave = async () => {
     if (!studioName.trim() || studioName.trim().length < 2) return
     setSavingStudio(true)
@@ -80,6 +84,20 @@ const Settings: React.FC = () => {
       alert('Erro ao salvar mensagem.')
     } finally {
       setSavingMsg(false)
+    }
+  }
+
+  const handleToggleRefImages = async (value: boolean) => {
+    setRequireRefImages(value)
+    setSavingRefImages(true)
+    try {
+      await authAPI.updateRequireReferenceImages(value)
+      updateUser({ requireReferenceImages: value })
+    } catch {
+      alert('Erro ao salvar configuração.')
+      setRequireRefImages(!value) // revert on error
+    } finally {
+      setSavingRefImages(false)
     }
   }
 
@@ -185,6 +203,35 @@ const Settings: React.FC = () => {
               {savingMsg ? 'Salvando...' : 'Salvar'}
             </button>
           </div>
+        </div>
+
+        {/* Reference images requirement */}
+        <div className="card">
+          <h3 className="text-sm font-semibold text-ink-400 uppercase tracking-widest mb-1">
+            Imagens de Referência
+          </h3>
+          <p className="text-gray-500 text-xs mb-4">
+            Quando ativado, os clientes só conseguem enviar a solicitação de orçamento se anexarem ao menos uma imagem de referência. Úbil para garantir que você receba inspirações visuais antes de avaliar o projeto.
+          </p>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={requireRefImages}
+            disabled={savingRefImages}
+            onClick={() => handleToggleRefImages(!requireRefImages)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50 ${
+              requireRefImages ? 'bg-ink-500' : 'bg-gray-700'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                requireRefImages ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+          <span className="ml-3 text-sm text-gray-300 align-middle">
+            {requireRefImages ? 'Obrigatório' : 'Opcional'}
+          </span>
         </div>
 
         {/* Logout */}
