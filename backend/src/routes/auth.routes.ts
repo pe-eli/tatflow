@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { register, login, me, checkSlug, updateSlug, updateWhatsappMessage, updateStudioName, updateRequireReferenceImages } from '../controllers/auth.controller';
 import { authenticate } from '../middleware/auth';
+import { writeLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -8,9 +9,9 @@ router.post('/register', register);
 router.post('/login', login);
 router.get('/me', authenticate, me);
 router.get('/check-slug/:slug', checkSlug);
-router.patch('/slug', authenticate, updateSlug);
-router.patch('/whatsapp-message', authenticate, updateWhatsappMessage);
-router.patch('/studio-name', authenticate, updateStudioName);
-router.patch('/require-reference-images', authenticate, updateRequireReferenceImages);
+router.patch('/slug', authenticate, writeLimiter, updateSlug);
+router.patch('/whatsapp-message', authenticate, writeLimiter, updateWhatsappMessage);
+router.patch('/studio-name', authenticate, writeLimiter, updateStudioName);
+router.patch('/require-reference-images', authenticate, writeLimiter, updateRequireReferenceImages);
 
 export default router;

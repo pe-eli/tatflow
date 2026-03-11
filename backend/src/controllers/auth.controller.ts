@@ -16,7 +16,7 @@ import { ZodError } from 'zod';
 
 const USER_SELECT = {
   id: true, name: true, email: true, role: true,
-  studioName: true, city: true, instagram: true,
+  studioName: true, state: true, city: true, instagram: true,
   slug: true, whatsappMessage: true, requireReferenceImages: true,
 } as const;
 
@@ -31,7 +31,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({ error: formatZodError(parsed.error) });
       return;
     }
-    const { name, email, password, studioName, city, instagram } = parsed.data;
+    const { name, email, password, studioName, state, city, instagram } = parsed.data;
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
@@ -41,7 +41,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     const hashed = await bcrypt.hash(password, 12);
     const user = await prisma.user.create({
-      data: { name, email, password: hashed, role: 'ARTIST', studioName, city, instagram },
+      data: { name, email: email.toLowerCase(), password: hashed, role: 'ARTIST', studioName, state, city, instagram },
     });
 
     // Seed default availability: Mon–Fri 09:00–18:00 (60 min slots)
@@ -58,7 +58,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const token = jwt.sign(
       { userId: user.id, role: user.role },
       getJwtSecret(),
-      { expiresIn: '7d' }
+      { expiresIn: '24h', algorithm: 'HS256' }
     );
 
     res.status(201).json({
@@ -80,8 +80,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
     const { email, password } = parsed.data;
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
     if (!user) {
+      // Perform a dummy hash comparison to prevent timing attacks
+      await bcrypt.compare(password, '$2a$12$000000000000000000000000000000000000000000000000000000');
       res.status(401).json({ error: 'E-mail ou senha inválidos' });
       return;
     }
@@ -95,7 +97,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     const token = jwt.sign(
       { userId: user.id, role: user.role },
       getJwtSecret(),
-      { expiresIn: '7d' }
+      { expiresIn: '24h', algorithm: 'HS256' }
     );
 
     res.json({

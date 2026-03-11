@@ -7,13 +7,14 @@ import {
   cancelAppointment,
 } from '../controllers/appointment.controller';
 import { authenticate } from '../middleware/auth';
+import { writeLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
-router.post('/', authenticate, createAppointment);
-router.post('/manual', authenticate, createManualAppointment);
+router.post('/', authenticate, writeLimiter, createAppointment);
+router.post('/manual', authenticate, writeLimiter, createManualAppointment);
 router.get('/', authenticate, getArtistAppointments);
-router.patch('/:id', authenticate, updateAppointment);
-router.delete('/:id', authenticate, cancelAppointment);
+router.patch('/:id', authenticate, writeLimiter, updateAppointment);
+router.delete('/:id', authenticate, writeLimiter, cancelAppointment);
 
 export default router;

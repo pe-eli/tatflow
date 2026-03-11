@@ -5,6 +5,7 @@ import {
   getAvailableSlots,
 } from '../controllers/availability.controller';
 import { authenticate } from '../middleware/auth';
+import { writeLimiter } from '../middleware/rateLimiter';
 
 const router = Router();
 
@@ -13,6 +14,6 @@ router.get('/:artistId', getArtistAvailability);
 router.get('/:artistId/slots', getAvailableSlots);
 
 // Protected
-router.put('/', authenticate, setArtistAvailability);
+router.put('/', authenticate, writeLimiter, setArtistAvailability);
 
 export default router;

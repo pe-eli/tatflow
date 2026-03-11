@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
-import { requestAPI, availabilityAPI, extractApiError } from '../services/api'
+import { requestAPI, availabilityAPI, styleAPI, extractApiError } from '../services/api'
 import { Availability, AvailabilityBlock, AvailabilityConfig, TimeSlot } from '../types'
-const STYLES = [
+const DEFAULT_STYLES = [
   'Traço Fino', 'Realismo', 'Tradicional', 'Neo-Tradicional', 'Blackwork',
   'Geométrico', 'Aquarela', 'Japonesa', 'Tribal', 'Minimalista', 'Outro',
 ]
@@ -43,6 +43,7 @@ const RequestForm: React.FC = () => {
   const [resolvedArtistId, setResolvedArtistId] = useState<string | null>(null)
   const [loadingArtist, setLoadingArtist] = useState(true)
   const [requireRefImages, setRequireRefImages] = useState(false)
+  const [artistStyles, setArtistStyles] = useState<string[]>(DEFAULT_STYLES)
 
   // Availability state
   const [availability, setAvailability] = useState<Availability[]>([])
@@ -63,7 +64,7 @@ const RequestForm: React.FC = () => {
 
   const [form, setForm] = useState({
     clientName: '', clientEmail: '', clientPhone: '',
-    size: '', style: STYLES[0],
+    size: '', style: '',
     description: '',
   })
 
@@ -89,6 +90,15 @@ const RequestForm: React.FC = () => {
       setArtistName(res.data.studioName || res.data.name)
       setRequireRefImages(!!res.data.requireReferenceImages)
       setLoadingArtist(false)
+
+      // Fetch artist's custom styles
+      styleAPI.getByArtist(artistId).then((stylesRes) => {
+        const list = stylesRes.data.length > 0 ? stylesRes.data : DEFAULT_STYLES
+        setArtistStyles(list)
+        setForm((prev) => ({ ...prev, style: prev.style || list[0] }))
+      }).catch(() => {
+        setForm((prev) => ({ ...prev, style: prev.style || DEFAULT_STYLES[0] }))
+      })
     }).catch((err) => {
       setLoadingArtist(false)
       const status = (err as { response?: { status?: number } })?.response?.status
@@ -350,7 +360,7 @@ const RequestForm: React.FC = () => {
               <div>
                 <label className="label">Estilo *</label>
                 <select name="style" value={form.style} onChange={handleChange} className="input">
-                  {STYLES.map((s) => <option key={s} value={s}>{s}</option>)}
+                  {artistStyles.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>

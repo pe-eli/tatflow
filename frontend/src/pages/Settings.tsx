@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { authAPI } from '../services/api'
+import { authAPI, styleAPI } from '../services/api'
 
 const Settings: React.FC = () => {
   const { user, updateUser, logout } = useAuth()
@@ -24,6 +24,19 @@ const Settings: React.FC = () => {
   // Reference images requirement
   const [requireRefImages, setRequireRefImages] = useState(user?.requireReferenceImages ?? false)
   const [savingRefImages, setSavingRefImages] = useState(false)
+
+  // Tattoo styles
+  const [styles, setStyles] = useState<string[]>([])
+  const [newStyle, setNewStyle] = useState('')
+  const [savingStyles, setSavingStyles] = useState(false)
+  const [loadingStyles, setLoadingStyles] = useState(true)
+
+  useEffect(() => {
+    styleAPI.getMine().then((res) => {
+      setStyles(res.data)
+      setLoadingStyles(false)
+    }).catch(() => setLoadingStyles(false))
+  }, [])
 
   const handleStudioNameSave = async () => {
     if (!studioName.trim() || studioName.trim().length < 2) return
@@ -98,6 +111,43 @@ const Settings: React.FC = () => {
       setRequireRefImages(!value) // revert on error
     } finally {
       setSavingRefImages(false)
+    }
+  }
+
+  const handleAddStyle = () => {
+    const trimmed = newStyle.trim()
+    if (!trimmed || styles.length >= 30) return
+    if (styles.some((s) => s.toLowerCase() === trimmed.toLowerCase())) return
+    const updated = [...styles, trimmed]
+    setStyles(updated)
+    setNewStyle('')
+    saveStyles(updated)
+  }
+
+  const handleRemoveStyle = (index: number) => {
+    const updated = styles.filter((_, i) => i !== index)
+    setStyles(updated)
+    saveStyles(updated)
+  }
+
+  const handleMoveStyle = (index: number, direction: -1 | 1) => {
+    const target = index + direction
+    if (target < 0 || target >= styles.length) return
+    const updated = [...styles]
+    ;[updated[index], updated[target]] = [updated[target], updated[index]]
+    setStyles(updated)
+    saveStyles(updated)
+  }
+
+  const saveStyles = async (list: string[]) => {
+    setSavingStyles(true)
+    try {
+      const res = await styleAPI.update(list)
+      setStyles(res.data)
+    } catch {
+      alert('Erro ao salvar estilos.')
+    } finally {
+      setSavingStyles(false)
     }
   }
 
@@ -232,6 +282,90 @@ const Settings: React.FC = () => {
           <span className="ml-3 text-sm text-gray-300 align-middle">
             {requireRefImages ? 'Obrigatório' : 'Opcional'}
           </span>
+        </div>
+
+        {/* Tattoo Styles */}
+        <div className="card">
+          <h3 className="text-sm font-semibold text-ink-400 uppercase tracking-widest mb-1">
+            Estilos de Tatuagem
+          </h3>
+          <p className="text-gray-500 text-xs mb-4">
+            Configure os estilos que você trabalha. Eles aparecerão para o cliente na hora de solicitar um orçamento.
+          </p>
+
+          {loadingStyles ? (
+            <p className="text-gray-500 text-sm">Carregando...</p>
+          ) : (
+            <>
+              {/* Add new style */}
+              <div className="flex gap-2 mb-4">
+                <input
+                  value={newStyle}
+                  onChange={(e) => setNewStyle(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddStyle() } }}
+                  className="input flex-1"
+                  placeholder="Nome do estilo"
+                  maxLength={60}
+                />
+                <button
+                  onClick={handleAddStyle}
+                  disabled={!newStyle.trim() || styles.length >= 30 || savingStyles}
+                  className="btn-primary text-xs px-4 py-1.5 disabled:opacity-40 whitespace-nowrap"
+                >
+                  Adicionar
+                </button>
+              </div>
+
+              {/* Styles list */}
+              {styles.length === 0 ? (
+                <p className="text-gray-600 text-sm text-center py-4">
+                  Nenhum estilo cadastrado. Os clientes verão uma lista padrão.
+                </p>
+              ) : (
+                <ul className="space-y-2">
+                  {styles.map((style, idx) => (
+                    <li key={idx} className="flex items-center gap-2 bg-gray-900 border border-gray-800 rounded-lg px-3 py-2">
+                      <span className="flex-1 text-sm text-gray-200">{style}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleMoveStyle(idx, -1)}
+                        disabled={idx === 0 || savingStyles}
+                        className="text-gray-500 hover:text-white disabled:opacity-20 text-xs px-1"
+                        title="Mover para cima"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMoveStyle(idx, 1)}
+                        disabled={idx === styles.length - 1 || savingStyles}
+                        className="text-gray-500 hover:text-white disabled:opacity-20 text-xs px-1"
+                        title="Mover para baixo"
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveStyle(idx)}
+                        disabled={savingStyles}
+                        className="text-red-500 hover:text-red-400 disabled:opacity-40 text-xs px-1"
+                        title="Remover"
+                      >
+                        ✕
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {styles.length > 0 && (
+                <p className="text-xs text-gray-600 mt-2">{styles.length}/30 estilos</p>
+              )}
+              {savingStyles && (
+                <p className="text-xs text-gray-500 mt-1">Salvando...</p>
+              )}
+            </>
+          )}
         </div>
 
         {/* Logout */}

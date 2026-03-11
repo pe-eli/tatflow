@@ -15,6 +15,7 @@ model User {
   role            Role            @default(ARTIST)
   slug            String?         @unique
   studioName      String?
+  state           String?
   city            String?
   instagram       String?
   whatsappMessage        String?         @default("Olá! Segue o orçamento da sua tatuagem:")
@@ -26,6 +27,18 @@ model User {
   appointments    Appointment[]
   availabilities  Availability[]
   availabilityBlocks AvailabilityBlock[]
+  tattooStyles    TattooStyle[]
+}
+
+model TattooStyle {
+  id        String   @id @default(cuid())
+  name      String
+  artistId  String
+  artist    User     @relation(fields: [artistId], references: [id])
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([artistId, name])
 }
 
 enum Role {

@@ -7,13 +7,18 @@ import StatusBadge from '../components/StatusBadge'
 
 const TABS = [
   { key: 'ALL', label: 'Todos' },
-  { key: 'PENDING', label: 'Novos' },
-  { key: 'QUOTED', label: 'Orçados' },
-  { key: 'APPROVED', label: 'Aprovados' },
-  { key: 'SCHEDULED', label: 'Agendados' },
-  { key: 'REJECTED', label: 'Recusados' },
+  { key: 'PENDING', label: 'Pendentes' },
+  { key: 'CONFIRMED', label: 'Confirmados' },
   { key: 'CANCELLED', label: 'Cancelados' },
 ] as const
+
+// Map tab keys to actual backend statuses
+const TAB_STATUS_MAP: Record<string, string[] | undefined> = {
+  ALL: undefined,
+  PENDING: ['PENDING', 'QUOTED'],
+  CONFIRMED: ['APPROVED', 'SCHEDULED'],
+  CANCELLED: ['REJECTED', 'CANCELLED'],
+}
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth()
@@ -28,9 +33,11 @@ const Dashboard: React.FC = () => {
     const fetch = async () => {
       setLoading(true)
       try {
-        const status = activeTab === 'ALL' ? undefined : activeTab
-        const res = await requestAPI.list(status)
-        setRequests(res.data)
+        // Always fetch all, filter client-side for grouped tabs
+        const res = await requestAPI.list()
+        const all: TattooRequest[] = res.data
+        const statuses = TAB_STATUS_MAP[activeTab]
+        setRequests(statuses ? all.filter((r) => statuses.includes(r.status)) : all)
       } catch (err) {
         console.error(err)
       } finally {
@@ -40,13 +47,9 @@ const Dashboard: React.FC = () => {
     fetch()
   }, [activeTab])
 
-  const counts = requests.reduce(
-    (acc, r) => {
-      acc[r.status] = (acc[r.status] || 0) + 1
-      return acc
-    },
-    {} as Record<string, number>
-  )
+  const pendingCount = requests.filter((r) => r.status === 'PENDING' || r.status === 'QUOTED').length
+  const confirmedCount = requests.filter((r) => r.status === 'APPROVED' || r.status === 'SCHEDULED').length
+  const cancelledCount = requests.filter((r) => r.status === 'REJECTED' || r.status === 'CANCELLED').length
 
   const copyLink = () => {
     navigator.clipboard.writeText(requestLink)
@@ -87,9 +90,9 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
         {[
           { label: 'Total', value: requests.length, color: 'text-white' },
-          { label: 'Pendentes', value: counts['PENDING'] || 0, color: 'text-yellow-400' },
-          { label: 'Orçados', value: counts['QUOTED'] || 0, color: 'text-blue-400' },
-          { label: 'Agendados', value: counts['SCHEDULED'] || 0, color: 'text-purple-400' },
+          { label: 'Pendentes', value: pendingCount, color: 'text-yellow-400' },
+          { label: 'Confirmados', value: confirmedCount, color: 'text-green-400' },
+          { label: 'Cancelados', value: cancelledCount, color: 'text-red-400' },
         ].map(({ label, value, color }) => (
           <div key={label} className="card text-center">
             <div className={`text-3xl font-bold ${color}`}>{value}</div>

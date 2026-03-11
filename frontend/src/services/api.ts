@@ -97,3 +97,10 @@ export const availabilityAPI = {
   getSlots: (artistId: string, date: string) =>
     api.get(`/availability/${artistId}/slots`, { params: { date } }),
 }
+
+// Tattoo Styles
+export const styleAPI = {
+  getMine: () => api.get<string[]>('/styles'),
+  getByArtist: (identifier: string) => api.get<string[]>(`/styles/${identifier}`),
+  update: (styles: string[]) => api.put<string[]>('/styles', { styles }),
+}

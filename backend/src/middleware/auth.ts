@@ -24,6 +24,9 @@ function getJwtSecret(): string {
 
 export { getJwtSecret };
 
+// Allowed JWT algorithms — prevent algorithm confusion attacks
+const JWT_ALGORITHMS: jwt.Algorithm[] = ['HS256'];
+
 export const authenticate = (req: AuthRequest, res: Response, next: NextFunction): void => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
@@ -31,12 +34,27 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
     return;
   }
 
-  const token = authHeader.split(' ')[1];
+  const token = authHeader.slice(7); // safer than split
+  if (!token || token.length > 2048) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
   try {
-    const payload = jwt.verify(token, getJwtSecret()) as {
+    const payload = jwt.verify(token, getJwtSecret(), {
+      algorithms: JWT_ALGORITHMS,
+      maxAge: '7d',
+    }) as {
       userId: string;
       role: string;
     };
+
+    // Validate payload shape
+    if (!payload.userId || typeof payload.userId !== 'string' || !payload.role || typeof payload.role !== 'string') {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
     req.user = { id: payload.userId, role: payload.role };
     req.userId = payload.userId;
     req.userRole = payload.role;

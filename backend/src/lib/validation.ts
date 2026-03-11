@@ -1,19 +1,39 @@
 import { z } from 'zod';
 
+// ─── Security Sanitizers ─────────────────────────────────────────
+
+/** Strip HTML tags and dangerous chars from freetext input */
+function sanitizeText(value: string): string {
+  return value
+    .replace(/<[^>]*>/g, '')       // strip HTML tags
+    .replace(/[<>]/g, '')          // strip remaining angle brackets
+    .trim();
+}
+
+/** Zod transform that sanitizes and trims text */
+const safeText = (minLen: number, maxLen: number) =>
+  z.string().min(minLen).max(maxLen).transform(sanitizeText);
+
 // === Auth ===
 
 export const registerSchema = z.object({
-  name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres').max(100),
-  email: z.string().email('E-mail inválido').max(255),
-  password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres').max(128),
+  name: safeText(2, 100),
+  email: z.string().email('E-mail inválido').max(255).transform((v) => v.toLowerCase().trim()),
+  password: z.string()
+    .min(8, 'Senha deve ter pelo menos 8 caracteres')
+    .max(128)
+    .regex(/[A-Z]/, 'Senha deve conter pelo menos uma letra maiúscula')
+    .regex(/[a-z]/, 'Senha deve conter pelo menos uma letra minúscula')
+    .regex(/[0-9]/, 'Senha deve conter pelo menos um número'),
   role: z.literal('ARTIST'),
-  studioName: z.string().max(100).optional(),
-  city: z.string().max(100).optional(),
-  instagram: z.string().max(100).optional(),
+  studioName: safeText(0, 100).optional(),
+  state: safeText(0, 2).optional(),
+  city: safeText(0, 100).optional(),
+  instagram: z.string().max(100).regex(/^[a-zA-Z0-9._]*$/, 'Instagram inválido').optional(),
 });
 
 export const loginSchema = z.object({
-  email: z.string().email('E-mail inválido').max(255),
+  email: z.string().email('E-mail inválido').max(255).transform((v) => v.toLowerCase().trim()),
   password: z.string().min(1, 'Senha é obrigatória').max(128),
 });
 
@@ -22,11 +42,11 @@ export const updateSlugSchema = z.object({
 });
 
 export const updateWhatsappMessageSchema = z.object({
-  whatsappMessage: z.string().max(500).optional().default(''),
+  whatsappMessage: z.string().max(500).optional().default('').transform(sanitizeText),
 });
 
 export const updateStudioNameSchema = z.object({
-  studioName: z.string().min(2, 'Nome do estúdio deve ter pelo menos 2 caracteres').max(100).transform((v) => v.trim()),
+  studioName: safeText(2, 100),
 });
 
 export const updateRequireReferenceImagesSchema = z.object({
@@ -36,15 +56,15 @@ export const updateRequireReferenceImagesSchema = z.object({
 // === Tattoo Requests ===
 
 export const createRequestSchema = z.object({
-  clientName: z.string().min(2).max(100),
-  clientEmail: z.string().email().max(255),
-  clientPhone: z.string().min(8).max(30),
-  placement: z.string().min(1).max(100),
-  size: z.string().min(1).max(50),
-  style: z.string().min(1).max(100),
-  description: z.string().min(1).max(2000),
-  preferredDate: z.string().max(20).optional().default(''),
-  preferredTime: z.string().max(20).optional().default(''),
+  clientName: safeText(2, 100),
+  clientEmail: z.string().email().max(255).transform((v) => v.toLowerCase().trim()),
+  clientPhone: z.string().min(8).max(30).regex(/^[\d() +-]+$/, 'Telefone inválido'),
+  placement: safeText(1, 200),
+  size: safeText(1, 50),
+  style: safeText(1, 100),
+  description: safeText(1, 2000),
+  preferredDate: z.string().max(20).regex(/^(\d{4}-\d{2}-\d{2})?$/, 'Data inválida').optional().default(''),
+  preferredTime: z.string().max(20).regex(/^(\d{2}:\d{2})?$/, 'Horário inválido').optional().default(''),
   artistId: z.string().cuid(),
 });
 
@@ -62,13 +82,16 @@ export const artistRequestsQuerySchema = z.object({
 
 export const createQuoteSchema = z.object({
   requestId: z.string().cuid(),
-  priceEstimate: z.union([z.number().positive(), z.string().transform((v) => {
-    const n = parseFloat(v);
-    if (isNaN(n) || n <= 0) throw new Error('priceEstimate must be a positive number');
-    return n;
-  })]),
-  sessionTime: z.string().min(1).max(50),
-  message: z.string().min(1).max(2000),
+  priceEstimate: z.union([
+    z.number().positive().max(999999),
+    z.string().transform((v) => {
+      const n = parseFloat(v);
+      if (isNaN(n) || n <= 0 || n > 999999) throw new Error('priceEstimate must be a positive number (max 999999)');
+      return n;
+    }),
+  ]),
+  sessionTime: safeText(1, 50),
+  message: safeText(1, 2000),
 });
 
 // === Appointments ===
@@ -81,22 +104,22 @@ export const createAppointmentSchema = z.object({
   date: z.string().regex(dateRegex, 'Date must be YYYY-MM-DD'),
   startTime: z.string().regex(timeRegex, 'Time must be HH:MM'),
   endTime: z.string().regex(timeRegex, 'Time must be HH:MM'),
-  notes: z.string().max(1000).optional(),
+  notes: z.string().max(1000).optional().transform((v) => v ? sanitizeText(v) : v),
 });
 
 export const createManualAppointmentSchema = z.object({
-  clientName: z.string().min(1).max(100),
+  clientName: safeText(1, 100),
   date: z.string().regex(dateRegex, 'Date must be YYYY-MM-DD'),
   startTime: z.string().regex(timeRegex, 'Time must be HH:MM'),
   endTime: z.string().regex(timeRegex, 'Time must be HH:MM'),
-  notes: z.string().max(1000).optional(),
+  notes: z.string().max(1000).optional().transform((v) => v ? sanitizeText(v) : v),
 });
 
 export const updateAppointmentSchema = z.object({
   date: z.string().regex(dateRegex, 'Date must be YYYY-MM-DD').optional(),
   startTime: z.string().regex(timeRegex, 'Time must be HH:MM').optional(),
   endTime: z.string().regex(timeRegex, 'Time must be HH:MM').optional(),
-  notes: z.string().max(1000).optional(),
+  notes: z.string().max(1000).optional().transform((v) => v ? sanitizeText(v) : v),
 });
 
 // === Availability ===
@@ -193,5 +216,11 @@ export const artistIdParamSchema = z.object({
 });
 
 export const identifierParamSchema = z.object({
-  identifier: z.string().min(1).max(100),
+  identifier: z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/, 'Invalid identifier'),
+});
+
+// === Tattoo Styles ===
+
+export const updateTattooStylesSchema = z.object({
+  styles: z.array(z.string().min(1).max(60).transform(sanitizeText)).max(30),
 });

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import fs from 'fs';
 import prisma from '../lib/prisma';
 import { AuthRequest } from '../middleware/auth';
 import {
@@ -12,6 +13,28 @@ import { ZodError } from 'zod';
 
 function formatZodError(err: ZodError) {
   return err.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join('; ');
+}
+
+// Magic bytes for allowed image formats
+const IMAGE_SIGNATURES: { ext: string; magic: number[] }[] = [
+  { ext: 'jpg', magic: [0xFF, 0xD8, 0xFF] },
+  { ext: 'png', magic: [0x89, 0x50, 0x4E, 0x47] },
+  { ext: 'gif', magic: [0x47, 0x49, 0x46] },
+  { ext: 'webp', magic: [0x52, 0x49, 0x46, 0x46] }, // RIFF header
+];
+
+function isValidImageFile(filePath: string): boolean {
+  try {
+    const fd = fs.openSync(filePath, 'r');
+    const buf = Buffer.alloc(8);
+    fs.readSync(fd, buf, 0, 8, 0);
+    fs.closeSync(fd);
+    return IMAGE_SIGNATURES.some(({ magic }) =>
+      magic.every((byte, i) => buf[i] === byte)
+    );
+  } catch {
+    return false;
+  }
 }
 
 export const resolveArtist = async (req: Request, res: Response): Promise<void> => {
@@ -55,6 +78,19 @@ export const createRequest = async (req: Request, res: Response): Promise<void> 
     }
 
     const files = req.files as Express.Multer.File[] | undefined;
+
+    // Verify file magic bytes — reject spoofed MIME types
+    if (files && files.length > 0) {
+      for (const file of files) {
+        if (!isValidImageFile(file.path)) {
+          // Remove the invalid file
+          try { fs.unlinkSync(file.path); } catch { /* ignore */ }
+          res.status(400).json({ error: 'Arquivo inválido detectado. Apenas imagens são permitidas.' });
+          return;
+        }
+      }
+    }
+
     const referenceImages = files ? files.map((f) => `/uploads/${f.filename}`) : [];
 
     const request = await prisma.tattooRequest.create({

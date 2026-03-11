@@ -90,7 +90,7 @@ const Landing: React.FC = () => {
           <h2 className="text-3xl font-bold text-white mb-4">Pronto para organizar seu estúdio?</h2>
           <p className="text-gray-400 mb-8">Entre para o TatFlow e gaste menos tempo na administração, mais tempo criando.</p>
           <Link to="/register" className="btn-primary text-lg py-3 px-10">
-            Crie sua conta de tatuador — é grátis
+            Crie sua conta
           </Link>
         </section>
       )}
