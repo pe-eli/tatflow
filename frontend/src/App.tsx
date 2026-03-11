@@ -14,6 +14,8 @@ import RequestDetails from './pages/RequestDetails'
 import CalendarPage from './pages/CalendarPage'
 import AvailabilityManager from './pages/AvailabilityManager'
 import Settings from './pages/Settings'
+import TermsOfUse from './pages/TermsOfUse'
+import PrivacyPolicy from './pages/PrivacyPolicy'
 
 function App() {
   return (
@@ -26,6 +28,8 @@ function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/register" element={<Register />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/terms" element={<TermsOfUse />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/request/:artistId" element={<RequestForm />} />
             <Route
               path="/dashboard"

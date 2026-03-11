@@ -1,4 +1,5 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 
 const Footer: React.FC = () => {
   return (
@@ -27,6 +28,13 @@ const Footer: React.FC = () => {
                 {' '}· © {new Date().getFullYear()}
               </p>
             </div>
+          </div>
+
+          {/* Legal links */}
+          <div className="flex items-center gap-3 text-xs text-gray-500">
+            <Link to="/terms" className="hover:text-gray-300 transition-colors">Termos de Uso</Link>
+            <span className="text-gray-700">·</span>
+            <Link to="/privacy" className="hover:text-gray-300 transition-colors">Política de Privacidade</Link>
           </div>
 
           {/* Links */}

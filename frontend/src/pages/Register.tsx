@@ -39,6 +39,7 @@ const Register: React.FC = () => {
   const [cities, setCities] = useState<IBGECity[]>([])
   const [loadingCities, setLoadingCities] = useState(false)
 
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -96,6 +97,11 @@ const Register: React.FC = () => {
     }
 
     const name = `${form.firstName.trim()} ${form.lastName.trim()}`
+
+    if (!acceptedTerms) {
+      setError('Você precisa aceitar os Termos de Uso para criar uma conta.')
+      return
+    }
 
     setLoading(true)
     try {
@@ -270,7 +276,28 @@ const Register: React.FC = () => {
                 </div>
               )}
 
-              <button type="submit" className="btn-primary w-full" disabled={loading}>
+              {/* Terms of Use checkbox */}
+              <div className="flex items-start gap-3 pt-1">
+                <input
+                  id="acceptedTerms"
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-600 bg-gray-800 accent-ink-500 cursor-pointer"
+                />
+                <label htmlFor="acceptedTerms" className="text-sm text-gray-400 leading-snug cursor-pointer">
+                  Li e concordo com os{' '}
+                  <Link to="/terms" target="_blank" className="text-ink-400 hover:text-ink-300 font-medium transition-colors">
+                    Termos de Uso
+                  </Link>{' '}e com a{' '}
+                  <Link to="/privacy" target="_blank" className="text-ink-400 hover:text-ink-300 font-medium transition-colors">
+                    Política de Privacidade
+                  </Link>
+                  .
+                </label>
+              </div>
+
+              <button type="submit" className="btn-primary w-full" disabled={loading || !acceptedTerms}>
                 {loading ? 'Criando conta...' : 'Criar Conta de Tatuador'}
               </button>
             </form>
